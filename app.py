@@ -7,18 +7,13 @@ import time
 # Sayfa Ayarları ve Kurumsal Başlık
 st.set_page_config(page_title="Kürüm Mühendislik - Enerji Yönetimi", page_icon="🏢", layout="wide")
 
-# ŞİFRELERİ DOĞRUDAN KODA GÖMÜYORUZ (Streamlit Secrets'ı tamamen devre dışı bıraktık)
-AWS_ACCESS_KEY_ID = "SENIN_AWS_ACCESS_KEY_BURAYA"
-AWS_SECRET_ACCESS_KEY = "SENIN_AWS_SECRET_KEY_BURAYA"
-AWS_REGION = "eu-central-1" # Eğer bölgen farklıysa burayı değiştir, örn: "us-east-1"
-
-# Doğrudan Bağlantı Fonksiyonu
+# Güvenli AWS Bağlantı Fonksiyonu (Secrets tabanlı)
 def get_dynamodb_resource():
     return boto3.resource(
         'dynamodb',
-        aws_access_key_id=AWS_ACCESS_KEY_ID,
-        aws_secret_access_key=AWS_SECRET_ACCESS_KEY,
-        region_name=AWS_REGION
+        aws_access_key_id=st.secrets["aws_access_key_id"],
+        aws_secret_access_key=st.secrets["aws_secret_access_key"],
+        region_name=st.secrets["aws_region"]
     )
 
 # Ana Panel Başlığı
@@ -79,7 +74,7 @@ try:
             chart_data_current = df.set_index('timestamp')[['current']]
             st.area_chart(chart_data_current)
     else:
-        st.warning("Veri bulunamadı. Lütfen sol menüden doğru fabrikayı seçtiğinizden emin olun.")
+        st.warning("Veri bulunamadı. Lütfen sol menüden doğru fabrikayı (Fabrika_A) seçtiğinizden emin olun.")
 
 except Exception as e:
     st.error(f"Bağlantı Hatası: {str(e)}")
