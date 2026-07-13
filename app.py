@@ -46,6 +46,12 @@ else:
     # --- Sidebar ---
     st.sidebar.markdown("## ⚙️ 𝓚𝓤̈𝓡𝓤̈𝓜 𝓘̇𝓩𝓛𝓔𝓜𝓔")
     st.sidebar.markdown("### 🟢 Sistem Durumu: **Aktif**")
+    
+    # Ayarlar Menüsü
+    with st.sidebar.expander("🛠️ Sistem Ayarları"):
+        anomali_hassasiyet = st.slider("YZ Hassasiyeti", 0.01, 0.20, 0.05, 0.01)
+        yenileme_hizi = st.select_slider("Yenileme Hızı (Saniye)", options=[5, 10, 30, 60], value=5)
+
     secili_fabrika = st.sidebar.selectbox("🏭 Fabrika:", ["Bursa_Fabrika", "İstanbul_Fabrika", "Ankara_Fabrika"])
     
     st.sidebar.subheader("📅 Tarih Filtresi")
@@ -77,9 +83,9 @@ else:
     
     # Yardım & Dokümantasyon
     with st.sidebar.expander("ℹ️ Yardım & Dokümantasyon"):
-        st.write("- **Anlık Güç:** Cihazdan gelen güncel veriyi gösterir.\n- **YZ Anomali:** Normalin dışındaki voltaj/akım hareketlerini tespit eder.\n- **Admin:** Veri temizliği yapabilir.\n- **Destek:** Sorun için sistem yöneticisine ulaşın.")
+        st.write("- **Anlık Güç:** Cihazdan gelen güncel veriyi gösterir.\n- **YZ Anomali:** Normalin dışındaki voltaj/akım hareketlerini tespit eder.\n- **Admin:** Yetkili iseniz veri temizliği yapabilirsiniz.\n- **Destek:** Sorun için sistem yöneticisine ulaşın.")
     
-    if st.sidebar.button("🚪 Oturumu Kapat"):
+    if st.sidebar.button("🚪 Güvenli Çıkış"):
         st.session_state.giris = False
         st.rerun()
 
@@ -110,7 +116,7 @@ else:
                 if not df.empty:
                     # YZ Anomali Tespiti
                     if len(df) > 10:
-                        model = IsolationForest(contamination=0.05)
+                        model = IsolationForest(contamination=anomali_hassasiyet)
                         df['anomaly'] = model.fit_predict(df[['guc', 'voltaj', 'akim']])
                         if df.iloc[-1]['anomaly'] == -1:
                             st.error(f"🚨 YZ Anomali Uyarısı: {df.iloc[-1]['zaman'].strftime('%H:%M:%S')} - Sıra dışı enerji aktivitesi!")
@@ -131,7 +137,7 @@ else:
                     c1.metric("Anlık Güç", f"{anlik} W", delta=f"{anlik - onceki} W")
                     c2.metric("Periyot Ort. Güç", f"{int(df_plot['guc'].mean())} W")
                     c3.metric("Anlık Voltaj", f"{vol:.2f} V")
-                    c4.metric("Fabrika Durumu", "✅ Aktif")
+                    c4.metric("Fabrika", "✅ Aktif")
                     
                     col_g1, col_g2 = st.columns(2)
                     col_g1.subheader(f"📈 Güç Geçmişi ({periyot})")
@@ -152,4 +158,4 @@ else:
                     st.warning("Bu tarih aralığında veri yok.")
             else:
                 st.info("⏳ Veri akışı bekleniyor...")
-        time.sleep(5)
+        time.sleep(yenileme_hizi)
