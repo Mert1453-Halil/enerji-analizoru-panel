@@ -47,10 +47,20 @@ else:
     st.sidebar.markdown("## ⚙️ 𝓚𝓤̈𝓡𝓤̈𝓜 𝓘̇𝓩𝓛𝓔𝓜𝓔")
     st.sidebar.markdown("### 🟢 Sistem Durumu: **Aktif**")
     
-    # Ayarlar Menüsü
-    with st.sidebar.expander("🛠️ Sistem Ayarları"):
+    # Tüm Ayarlar ve Kontrol Paneli Birleştirildi
+    with st.sidebar.expander("⚙️ Ayarlar & Menü", expanded=True):
         anomali_hassasiyet = st.slider("YZ Hassasiyeti", 0.01, 0.20, 0.05, 0.01)
         yenileme_hizi = st.select_slider("Yenileme Hızı (Saniye)", options=[5, 10, 30, 60], value=5)
+        
+        st.markdown("---")
+        indirme_yeri = st.empty()
+        
+        with st.expander("ℹ️ Yardım & Dokümantasyon"):
+            st.write("- **Anlık Güç:** Cihazdan gelen güncel veriyi gösterir.\n- **YZ Anomali:** Normalin dışındaki voltaj/akım hareketlerini tespit eder.\n- **Admin:** Yetkili iseniz veri temizliği yapabilirsiniz.\n- **Destek:** Sorun için sistem yöneticisine ulaşın.")
+        
+        if st.button("🚪 Güvenli Çıkış"):
+            st.session_state.giris = False
+            st.rerun()
 
     secili_fabrika = st.sidebar.selectbox("🏭 Fabrika:", ["Bursa_Fabrika", "İstanbul_Fabrika", "Ankara_Fabrika"])
     
@@ -78,17 +88,6 @@ else:
             st.sidebar.success("Arşiv temizlendi!")
             st.rerun()
 
-    st.sidebar.markdown("---")
-    indirme_yeri = st.sidebar.empty()
-    
-    # Yardım & Dokümantasyon
-    with st.sidebar.expander("ℹ️ Yardım & Dokümantasyon"):
-        st.write("- **Anlık Güç:** Cihazdan gelen güncel veriyi gösterir.\n- **YZ Anomali:** Normalin dışındaki voltaj/akım hareketlerini tespit eder.\n- **Admin:** Yetkili iseniz veri temizliği yapabilirsiniz.\n- **Destek:** Sorun için sistem yöneticisine ulaşın.")
-    
-    if st.sidebar.button("🚪 Güvenli Çıkış"):
-        st.session_state.giris = False
-        st.rerun()
-
     # --- Ana Dashboard ---
     col_t, col_s = st.columns([4, 1])
     col_t.title(f"⚡ {secili_fabrika} - Enerji & Voltaj İzleme")
@@ -114,7 +113,6 @@ else:
                 df = df.loc[mask]
                 
                 if not df.empty:
-                    # YZ Anomali Tespiti
                     if len(df) > 10:
                         model = IsolationForest(contamination=anomali_hassasiyet)
                         df['anomaly'] = model.fit_predict(df[['guc', 'voltaj', 'akim']])
