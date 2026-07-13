@@ -4,6 +4,7 @@ import pandas as pd
 from boto3.dynamodb.conditions import Attr
 import time
 from datetime import datetime, time as dt_time
+import io
 
 # --- Sayfa Yapılandırması ---
 st.set_page_config(page_title="Kürüm Mühendislik İzleme", layout="wide", page_icon="⚡")
@@ -40,16 +41,17 @@ else:
     baslangic = st.sidebar.date_input("Başlangıç", datetime.now())
     bitis = st.sidebar.date_input("Bitiş", datetime.now())
     
-    # Zaman Çözünürlüğü Filtresi
+    # Yeni Eklenen: Grafik Çözünürlüğü
     periyot = st.sidebar.selectbox("📊 Grafik Çözünürlüğü:", 
                                    ["Anlık (Ham Veri)", "Saatlik", "Günlük", "Haftalık", "Aylık"])
-
+    
     # --- Admin Yetkileri ---
     if st.session_state.kullanici == "Özdemir Kamer Kürüm":
         st.sidebar.markdown("---")
         st.sidebar.subheader("🧨 Admin Veri Yönetimi")
         saat_bas = st.sidebar.time_input("Silme Başlangıç Saati", dt_time(0, 0))
         saat_bit = st.sidebar.time_input("Silme Bitiş Saati", dt_time(23, 59))
+        
         if st.sidebar.button("🗑️ Seçili Aralığı Temizle"):
             table = get_table()
             items = table.scan(FilterExpression=Attr('fabrika').eq(secili_fabrika))['Items']
@@ -61,6 +63,10 @@ else:
             st.rerun()
 
     st.sidebar.markdown("---")
+    
+    # Yeni Eklenen: İndirme Butonu Yeri
+    indirme_yeri = st.sidebar.empty()
+    
     if st.sidebar.button("🚪 Oturumu Kapat"):
         st.session_state.giris = False
         st.rerun()
@@ -78,8 +84,8 @@ else:
             if items:
                 df = pd.DataFrame(items)
                 df['guc'] = pd.to_numeric(df['guc'])
-                df['voltaj'] = pd.to_numeric(df['voltaj']) if 'voltaj' in df.columns else 0.0
                 df['zaman'] = pd.to_datetime(df['zaman'])
+                df['voltaj'] = pd.to_numeric(df['voltaj']) if 'voltaj' in df.columns else 0.0
                 df = df.sort_values('zaman')
                 
                 # Tarih Filtresi
@@ -87,6 +93,10 @@ else:
                 df = df.loc[mask]
                 
                 if not df.empty:
+                    # İndirme Butonu Güncelleme
+                    csv = df.to_csv(index=False).encode('utf-8-sig')
+                    indirme_yeri.download_button("📥 Seçili Veriyi İndir (CSV)", csv, f"{secili_fabrika}_rapor.csv", "text/csv")
+                    
                     # Gruplama Mantığı
                     df_plot = df.set_index('zaman')
                     mapping = {"Saatlik": 'h', "Günlük": 'D', "Haftalık": 'W', "Aylık": 'ME'}
@@ -94,25 +104,25 @@ else:
                     if periyot != "Anlık (Ham Veri)":
                         df_plot = df_plot.resample(mapping[periyot]).mean(numeric_only=True)
                     
-                    # Metrikler
                     anlik = df.iloc[-1]['guc']
+                    onceki = df.iloc[-2]['guc'] if len(df) > 1 else anlik
                     vol = df.iloc[-1]['voltaj']
                     
                     c1, c2, c3, c4 = st.columns(4)
-                    c1.metric("Anlık Güç", f"{anlik} W")
+                    c1.metric("Anlık Güç", f"{anlik} W", delta=f"{anlik - onceki} W")
                     c2.metric("Periyot Ort. Güç", f"{int(df_plot['guc'].mean())} W")
                     c3.metric("Anlık Voltaj", f"{vol:.2f} V")
-                    c4.metric("Durum", "✅ Aktif")
+                    c4.metric("Fabrika", "✅ Aktif")
                     
                     # Grafikler
                     col_g1, col_g2 = st.columns(2)
-                    col_g1.subheader(f"📈 Güç ({periyot})")
+                    col_g1.subheader(f"📈 Güç Geçmişi ({periyot})")
                     col_g1.line_chart(df_plot[['guc']])
-                    col_g2.subheader(f"📉 Voltaj ({periyot})")
+                    col_g2.subheader(f"📉 Voltaj Geçmişi ({periyot})")
                     col_g2.line_chart(df_plot[['voltaj']])
                     
                     st.subheader("📋 Detaylı Veri Logu")
-                    st.dataframe(df.sort_values('zaman', ascending=False), use_container_width=True)
+                    st.dataframe(df[['zaman', 'cihaz', 'guc', 'voltaj', 'akim', 'fabrika']].sort_values('zaman', ascending=False), use_container_width=True)
                 else:
                     st.warning("Bu tarih aralığında veri yok.")
             else:
