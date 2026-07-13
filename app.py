@@ -13,7 +13,8 @@ st.set_page_config(page_title="Kürüm Mühendislik İzleme", layout="wide", pag
 # Estetik CSS Dokunuşları
 st.markdown("""
     <style>
-    [data-testid="stMetric"] {background-color: #f9f9f9; padding: 15px; border-radius: 10px; border-left: 5px solid #2E86C1; box-shadow: 2px 2px 5px rgba(0,0,0,0.1);}
+    .stApp {background-color: #fcfcfc;}
+    [data-testid="stMetric"] {background-color: #ffffff; padding: 20px; border-radius: 12px; border: 1px solid #e0e0e0; box-shadow: 0 4px 6px rgba(0,0,0,0.05);}
     th {background-color: #f0f2f6 !important; text-align: center !important;}
     </style>
 """, unsafe_allow_html=True)
@@ -44,6 +45,7 @@ if not st.session_state.giris:
 else:
     # --- Sidebar ---
     st.sidebar.markdown("## ⚙️ 𝓚𝓤̈𝓡𝓤̈𝓜 𝓘̇𝓩𝓛𝓔𝓜𝓔")
+    st.sidebar.markdown("### 🟢 Sistem Durumu: **Aktif**")
     secili_fabrika = st.sidebar.selectbox("🏭 Fabrika:", ["Bursa_Fabrika", "İstanbul_Fabrika", "Ankara_Fabrika"])
     
     st.sidebar.subheader("📅 Tarih Filtresi")
@@ -73,12 +75,19 @@ else:
     st.sidebar.markdown("---")
     indirme_yeri = st.sidebar.empty()
     
+    # Yardım & Dokümantasyon
+    with st.sidebar.expander("ℹ️ Yardım & Dokümantasyon"):
+        st.write("- **Anlık Güç:** Cihazdan gelen güncel veriyi gösterir.\n- **YZ Anomali:** Normalin dışındaki voltaj/akım hareketlerini tespit eder.\n- **Admin:** Veri temizliği yapabilir.\n- **Destek:** Sorun için sistem yöneticisine ulaşın.")
+    
     if st.sidebar.button("🚪 Oturumu Kapat"):
         st.session_state.giris = False
         st.rerun()
 
     # --- Ana Dashboard ---
-    st.title(f"⚡ {secili_fabrika} - Enerji & Voltaj İzleme")
+    col_t, col_s = st.columns([4, 1])
+    col_t.title(f"⚡ {secili_fabrika} - Enerji & Voltaj İzleme")
+    col_s.metric("Sistem Sağlığı", "Kararlı", delta="Normal")
+    
     placeholder = st.empty()
     table = get_table()
     
@@ -122,7 +131,7 @@ else:
                     c1.metric("Anlık Güç", f"{anlik} W", delta=f"{anlik - onceki} W")
                     c2.metric("Periyot Ort. Güç", f"{int(df_plot['guc'].mean())} W")
                     c3.metric("Anlık Voltaj", f"{vol:.2f} V")
-                    c4.metric("Fabrika", "✅ Aktif")
+                    c4.metric("Fabrika Durumu", "✅ Aktif")
                     
                     col_g1, col_g2 = st.columns(2)
                     col_g1.subheader(f"📈 Güç Geçmişi ({periyot})")
@@ -131,8 +140,6 @@ else:
                     col_g2.line_chart(df_plot[['voltaj']])
                     
                     st.subheader("📋 Detaylı Veri Logu")
-                    
-                    # YZ ile işaretlenmiş tablo
                     def highlight_anomaly(row):
                         return ['background-color: #ffcccc' if row.get('anomaly') == -1 else '' for _ in row]
                     
