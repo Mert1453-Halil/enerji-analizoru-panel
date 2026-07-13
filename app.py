@@ -3,19 +3,21 @@ import boto3
 import pandas as pd
 import time
 
-# --- AWS KİMLİK BİLGİLERİN (Secrets'tan Okuma) ---
-AWS_ACCESS_KEY = st.secrets["AWS_ACCESS_KEY"]
-AWS_SECRET_KEY = st.secrets["AWS_SECRET_KEY"]
-REGION_NAME = st.secrets["REGION_NAME"]
+# --- AWS ŞİFRELERİNİ DOĞRUDAN KODA GÖMÜYORUZ (Secrets Kutusu Artık Devre Dışı) ---
+# Lütfen yeni alacağın şifreleri bu tırnakların içine yaz:
+AWS_ACCESS_KEY = "AKIASH3ZBYKXRMWZEV7N"
+AWS_SECRET_KEY = "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"
+REGION_NAME = "us-east-1"  # Frankfurt ise "eu-central-1" yap
+
 ELEKTRIK_TARIFESI = 2.50 
 
+# Güvenli Bağlantı İstasyonu
 dynamodb = boto3.resource(
     'dynamodb',
     aws_access_key_id=AWS_ACCESS_KEY,
     aws_secret_access_key=AWS_SECRET_KEY,
     region_name=REGION_NAME
 )
-# AWS DynamoDB'deki asıl tablonun ismi (Küçük-büyük harfe dikkat ederek)
 table = dynamodb.Table('Enerji_Verileri')
 
 st.set_page_config(page_title="Enerji Takip Sistemi | Login", layout="wide")
@@ -27,7 +29,6 @@ KULLANICILAR = {
     "patron_b": {"sifre": "fabrikaB34", "rol": "patron", "fabrika": "Fabrika_B"}
 }
 
-# Oturum Durumu Kontrolü
 if "giris_yapildi" not in st.session_state:
     st.session_state.giris_yapildi = False
     st.session_state.kullanici = ""
@@ -37,7 +38,6 @@ if "giris_yapildi" not in st.session_state:
 # --- 1. KISIM: LOGIN (GİRİŞ EKRANI) ---
 if not st.session_state.giris_yapildi:
     col1, col2, col3 = st.columns([1, 2, 1])
-    
     with col2:
         st.markdown("<br><br>", unsafe_allow_html=True)
         st.write("### 🏢 ENERJİ TAKİP PORTALI")
@@ -47,7 +47,6 @@ if not st.session_state.giris_yapildi:
             st.markdown("##### 🔒 Müşteri Girişi")
             kullanici_adi = st.text_input("Kullanıcı Adı / E-posta", placeholder="Örn: patron_a")
             sifre = st.text_input("Şifre", type="password", placeholder="••••••••")
-            
             submit_button = st.form_submit_button(label="Sisteme Giriş Yap")
             
             if submit_button:
@@ -60,11 +59,10 @@ if not st.session_state.giris_yapildi:
                     time.sleep(1)
                     st.rerun()
                 else:
-                    st.error("❌ errNum=3: Hatalı Kullanıcı Adı veya Şifre! Lütfen bilgilerinizi kontrol edin.")
+                    st.error("❌ Hatalı Kullanıcı Adı veya Şifre!")
 
 # --- 2. KISIM: İÇERİK (DASHBOARD EKRANI) ---
 else:
-    # Yan Menü Kontrolleri ve Güvenli Çıkış
     st.sidebar.markdown(f"### 👤 {st.session_state.kullanici.upper()}")
     st.sidebar.caption(f"Yetki: {st.session_state.rol.upper()}")
     
@@ -77,7 +75,6 @@ else:
     veri_sayisi = st.sidebar.slider("Görselleştirilecek Kayıt Sayısı", 5, 50, 15)
     otomatik_yenileme = st.sidebar.checkbox("Canlı Veri Akışı Aktif", value=True)
 
-    # Rol Yönetimi ve Fabrika Filtre Ayarı
     hedef_fabrika = st.session_state.fabrika
     if st.session_state.rol == "admin":
         hedef_fabrika = st.sidebar.selectbox("İzlenecek Fabrikayı Seçin", ["Fabrika_A", "Fabrika_B"])
@@ -86,15 +83,12 @@ else:
     else:
         st.title(f"🏭 {hedef_fabrika} Enerji Takip Portalı")
 
-    # AWS DynamoDB Veri Çekme İstasyonu
     try:
         response = table.scan()
         items = response.get('Items', [])
         
         if items:
             df = pd.DataFrame(items)
-            
-            # Filtreleme
             if 'fabrika' in df.columns:
                 df = df[df['fabrika'] == hedef_fabrika]
 
@@ -108,47 +102,33 @@ else:
 
                 son_veri = df.iloc[-1]
                 
-                # Gösterge Kartları (Metrikler)
                 col1, col2, col3, col4 = st.columns(4)
                 col1.metric(label="⚡ Voltaj (V)", value=f"{son_veri['voltaj']:.1f} V")
                 col2.metric(label="🔌 Akım (A)", value=f"{son_veri['akim']:.2f} A")
                 col3.metric(label="🔥 Aktif Güç (W)", value=f"{son_veri['guc']:.1f} W")
-                
-                frek_val = son_veri.get('frekans', 50.0)
-                col4.metric(label="🌀 Frekans (Hz)", value=f"{frek_val} Hz")
+                col4.metric(label="🌀 Frekans (Hz)", value=f"{son_veri.get('frekans', 50.0)} Hz")
                 
                 st.markdown("---")
                 col_kwh, col_tl, col_cos = st.columns(3)
-                
                 kwh_val = son_veri.get('toplam_kwh', 0.0)
                 col_kwh.metric(label="📦 Toplam Enerji Tüketimi", value=f"{kwh_val:.2f} kWh")
-                
-                tahmini_fatura = kwh_val * ELEKTRIK_TARIFESI
-                col_tl.metric(label="💰 Dönemsel Maliyet Yükü", value=f"{tahmini_fatura:.2f} TL")
-                
-                cos_val = son_veri.get('cos_phi', 1.0)
-                col_cos.metric(label="📉 Güç Faktörü (Cos φ)", value=f"{cos_val:.2f}")
+                col_tl.metric(label="💰 Dönemsel Maliyet Yükü", value=f"{kwh_val * ELEKTRIK_TARIFESI:.2f} TL")
+                col_cos.metric(label="📉 Güç Faktörü (Cos φ)", value=f"{son_veri.get('cos_phi', 1.0):.2f}")
 
-                # Alarm Bölgesi
                 st.markdown("---")
                 if son_veri.get('UYARI_DURUMU', 'NORMAL') != "NORMAL":
                     st.error(f"🚨 SİSTEM ALARMI: {son_veri['UYARI_DURUMU']}")
                 else:
                     st.success("✅ Sistem Durumu: Kararlı (Tüm değerler nominal sınırlarda)")
 
-                # Grafikler
                 st.subheader("📊 Zaman Serisi Grafikleri")
                 tab1, tab2 = st.tabs(["Yük & Gerilim Grafiği", "Akım & Verimlilik Grafiği"])
-                
                 with tab1:
-                    chart_data1 = df.tail(veri_sayisi).set_index('zaman')[['voltaj', 'guc']]
-                    st.line_chart(chart_data1)
+                    st.line_chart(df.tail(veri_sayisi).set_index('zaman')[['voltaj', 'guc']])
                 with tab2:
                     if 'cos_phi' in df.columns:
-                        chart_data2 = df.tail(veri_sayisi).set_index('zaman')[['akim', 'cos_phi']]
-                        st.line_chart(chart_data2)
+                        st.line_chart(df.tail(veri_sayisi).set_index('zaman')[['akim', 'cos_phi']])
 
-                # Kayıt Günlüğü
                 st.subheader("📋 Geçmiş Kayıt Günlüğü")
                 gosterilecek_sutunlar = ['zaman', 'voltaj', 'akim', 'guc', 'toplam_kwh', 'UYARI_DURUMU']
                 mevcut_sutunlar = [c for c in gosterilecek_sutunlar if c in df.columns]
@@ -157,11 +137,9 @@ else:
                 st.warning(f"⚠️ {hedef_fabrika} adına kayıtlı canlı veri akışı henüz bulunmuyor.")
         else:
             st.warning("Veri tabanından veri okunamıyor...")
-            
     except Exception as e:
         st.error(f"AWS Bağlantı Hatası: {str(e)}")
 
-    # Canlı Yenileme İstasyonu (While True yerine Streamlit usulü)
     if otomatik_yenileme:
         time.sleep(3)
         st.rerun()
