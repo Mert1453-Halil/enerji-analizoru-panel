@@ -56,9 +56,9 @@ st.markdown("""
 def get_dynamodb_resource():
     return boto3.resource(
         'dynamodb',
-        aws_access_key_id=st.secrets["AWS_ACCESS_KEY"],
-        aws_secret_access_key=st.secrets["AWS_SECRET_KEY"],
-        region_name=st.secrets["REGION_NAME"]
+       aws_access_key_id=st.secrets["AWS_ACCESS_KEY"],
+       aws_secret_access_key=st.secrets["AWS_SECRET_KEY"],
+       region_name=st.secrets["REGION_NAME"]
     )
 
 # ==========================================
