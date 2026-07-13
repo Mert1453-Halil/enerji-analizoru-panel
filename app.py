@@ -9,8 +9,8 @@ from datetime import datetime, time as dt_time
 st.set_page_config(page_title="Kürüm Mühendislik İzleme", layout="wide", page_icon="⚡")
 
 # --- AWS Ayarları ---
-ACCESS_KEY = "AKIASH3ZBYKXQQQAG44E"
-SECRET_KEY = "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"
+ACCESS_KEY = "senin_access_keyin"
+SECRET_KEY = "senin_secret_keyin"
 REGION = "us-east-1"
 
 @st.cache_resource
