@@ -8,14 +8,18 @@ from datetime import datetime, time as dt_time
 # --- Sayfa Yapılandırması ---
 st.set_page_config(page_title="Kürüm Mühendislik İzleme", layout="wide", page_icon="⚡")
 
-# --- AWS Ayarları ---
-ACCESS_KEY = "senin_access_keyin"
-SECRET_KEY = "senin_secret_keyin"
-REGION = "us-east-1"
+# app.py dosyasının en başında
+import streamlit as st
+import boto3
 
 @st.cache_resource
 def get_table():
-    session = boto3.Session(aws_access_key_id=ACCESS_KEY, aws_secret_access_key=SECRET_KEY, region_name=REGION)
+    # Burayı mutlaka bu şekilde güncelle:
+    session = boto3.Session(
+        aws_access_key_id=st.secrets["ACCESS_KEY"],
+        aws_secret_access_key=st.secrets["SECRET_KEY"],
+        region_name="us-east-1"
+    )
     return session.resource('dynamodb').Table('Enerji_Verileri')
 
 # --- Oturum Yönetimi ---
