@@ -7,7 +7,7 @@ import time
 # Sayfa Ayarları ve Kurumsal Başlık
 st.set_page_config(page_title="Kürüm Mühendislik - Enerji Yönetimi", page_icon="🏢", layout="wide")
 
-# Orijinal AWS Bağlantı Fonksiyonu (Eski çalışan kodun birebir aynısı)
+# Orijinal AWS Bağlantı Fonksiyonu
 def get_dynamodb_resource():
     return boto3.resource(
         'dynamodb',
@@ -16,25 +16,7 @@ def get_dynamodb_resource():
         region_name=st.secrets["aws_region"]
     )
 
-# Giriş Kontrolü (Senin ilk kodundaki orijinal şifre mekanizması)
-if 'logged_in' not in st.session_state:
-    st.session_state['logged_in'] = False
-
-if not st.session_state['logged_in']:
-    st.header("🏢 KÜRÜM MÜHENDİSLİK")
-    st.subheader("Müşteri Girişi")
-    username = st.text_input("Kullanıcı Adı / E-posta", placeholder="Örn: patron_a")
-    password = st.text_input("Şifre", type="password")
-    if st.button("Sisteme Giriş Yap"):
-        # Buraya senin ilk başta sorunsuz giriş yaptığın ESKİ kullanıcı adı ve şifreni yazıyorum
-        if username == "admin" and password == "admin": 
-            st.session_state['logged_in'] = True
-            st.rerun()
-        else:
-            st.error("Hatalı kullanıcı adı veya şifre!")
-    st.stop()
-
-# Ana Panel Başlığı
+# Ana Panel Başlığı (Giriş ekranı kaldırıldı, doğrudan burası açılacak)
 st.title("🏢 KÜRÜM MÜHENDİSLİK")
 st.subheader("Endüstriyel Akıllı Enerji Analizörü ve Raporlama Sistemi")
 st.markdown("---")
@@ -45,11 +27,7 @@ record_count = st.sidebar.slider("Görselleştirilecek Kayıt Sayısı", 5, 50, 
 live_stream = st.sidebar.checkbox("Canlı Veri Akışı Aktif", value=True)
 selected_factory = st.sidebar.selectbox("İzlenecek Fabrikayı Seçin", ["Fabrika_A", "Fabrika_B"])
 
-if st.sidebar.button("Sistemden Çıkış Yap"):
-    st.session_state['logged_in'] = False
-    st.rerun()
-
-# Orijinal Veri Çekme Yapısı (Eski çalışan tablonuzla birlikte)
+# Orijinal Veri Çekme Yapısı
 try:
     dynamodb = get_dynamodb_resource()
     table = dynamodb.Table('enerji_analizoru')
@@ -96,7 +74,7 @@ try:
             chart_data_current = df.set_index('timestamp')[['current']]
             st.area_chart(chart_data_current)
     else:
-        st.warning("Veri bulunamadı.")
+        st.warning("Veri bulunamadı. Lütfen sol menüden doğru fabrikayı (Fabrika_A) seçtiğinizden emin olun.")
 
 except Exception as e:
     st.error("Veri tabanına bağlanırken bir hata oluştu. Lütfen AWS Secrets ayarlarını kontrol edin.")
