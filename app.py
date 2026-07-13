@@ -5,7 +5,7 @@ from boto3.dynamodb.conditions import Attr
 import time
 from datetime import datetime, time as dt_time
 import io
-from sklearn.ensemble import IsolationForest # YZ için eklendi
+from sklearn.ensemble import IsolationForest 
 
 # --- Sayfa Yapılandırması ---
 st.set_page_config(page_title="Kürüm Mühendislik İzleme", layout="wide", page_icon="⚡")
@@ -99,8 +99,9 @@ else:
                 df = df.loc[mask]
                 
                 if not df.empty:
+                    # Hata giderildi: unique key eklendi
                     csv = df.to_csv(index=False).encode('utf-8-sig')
-                    indirme_yeri.download_button("📥 Seçili Veriyi İndir (CSV)", csv, f"{secili_fabrika}_rapor.csv", "text/csv")
+                    indirme_yeri.download_button("📥 Seçili Veriyi İndir (CSV)", csv, f"{secili_fabrika}_rapor.csv", "text/csv", key=f"btn_{i}")
                     
                     # --- YZ Anomali Tespiti ---
                     if len(df) > 10:
