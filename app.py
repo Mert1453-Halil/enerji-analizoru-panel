@@ -8,13 +8,8 @@ from datetime import datetime, time as dt_time
 # --- Sayfa Yapılandırması ---
 st.set_page_config(page_title="Kürüm Mühendislik İzleme", layout="wide", page_icon="⚡")
 
-# app.py dosyasının en başında
-import streamlit as st
-import boto3
-
 @st.cache_resource
 def get_table():
-    # Burayı mutlaka bu şekilde güncelle:
     session = boto3.Session(
         aws_access_key_id=st.secrets["ACCESS_KEY"],
         aws_secret_access_key=st.secrets["SECRET_KEY"],
@@ -26,7 +21,6 @@ def get_table():
 if "giris" not in st.session_state: st.session_state.giris = False
 
 if not st.session_state.giris:
-    # Logon varsa buraya st.image("logo.png") ekleyebilirsin
     st.markdown("<h1 style='text-align: center; color: #2E86C1;'>𝓚𝓤̈𝓡𝓤̈𝓜 𝓘̇𝓩𝓛𝓔𝓜𝓔 𝓢𝓘̇𝓢𝓣𝓔𝓜𝓛𝓔𝓡𝓘̇</h1>", unsafe_allow_html=True)
     st.subheader("🔑 Giriş Portalı")
     user = st.text_input("Kullanıcı Adı")
@@ -46,13 +40,16 @@ else:
     baslangic = st.sidebar.date_input("Başlangıç", datetime.now())
     bitis = st.sidebar.date_input("Bitiş", datetime.now())
     
+    # Zaman Çözünürlüğü Filtresi
+    periyot = st.sidebar.selectbox("📊 Grafik Çözünürlüğü:", 
+                                   ["Anlık (Ham Veri)", "Saatlik", "Günlük", "Haftalık", "Aylık"])
+
     # --- Admin Yetkileri ---
     if st.session_state.kullanici == "Özdemir Kamer Kürüm":
         st.sidebar.markdown("---")
         st.sidebar.subheader("🧨 Admin Veri Yönetimi")
         saat_bas = st.sidebar.time_input("Silme Başlangıç Saati", dt_time(0, 0))
         saat_bit = st.sidebar.time_input("Silme Bitiş Saati", dt_time(23, 59))
-        
         if st.sidebar.button("🗑️ Seçili Aralığı Temizle"):
             table = get_table()
             items = table.scan(FilterExpression=Attr('fabrika').eq(secili_fabrika))['Items']
@@ -81,14 +78,8 @@ else:
             if items:
                 df = pd.DataFrame(items)
                 df['guc'] = pd.to_numeric(df['guc'])
+                df['voltaj'] = pd.to_numeric(df['voltaj']) if 'voltaj' in df.columns else 0.0
                 df['zaman'] = pd.to_datetime(df['zaman'])
-                
-                # Voltaj kontrolü (Hata almamak için)
-                if 'voltaj' in df.columns:
-                    df['voltaj'] = pd.to_numeric(df['voltaj'])
-                else:
-                    df['voltaj'] = 0.0
-                
                 df = df.sort_values('zaman')
                 
                 # Tarih Filtresi
@@ -96,25 +87,32 @@ else:
                 df = df.loc[mask]
                 
                 if not df.empty:
+                    # Gruplama Mantığı
+                    df_plot = df.set_index('zaman')
+                    mapping = {"Saatlik": 'h', "Günlük": 'D', "Haftalık": 'W', "Aylık": 'ME'}
+                    
+                    if periyot != "Anlık (Ham Veri)":
+                        df_plot = df_plot.resample(mapping[periyot]).mean(numeric_only=True)
+                    
+                    # Metrikler
                     anlik = df.iloc[-1]['guc']
-                    onceki = df.iloc[-2]['guc'] if len(df) > 1 else anlik
                     vol = df.iloc[-1]['voltaj']
                     
                     c1, c2, c3, c4 = st.columns(4)
-                    c1.metric("Anlık Güç", f"{anlik} W", delta=f"{anlik - onceki} W")
-                    c2.metric("Ortalama Güç", f"{int(df['guc'].mean())} W")
+                    c1.metric("Anlık Güç", f"{anlik} W")
+                    c2.metric("Periyot Ort. Güç", f"{int(df_plot['guc'].mean())} W")
                     c3.metric("Anlık Voltaj", f"{vol:.2f} V")
-                    c4.metric("Fabrika", "✅ Aktif")
+                    c4.metric("Durum", "✅ Aktif")
                     
                     # Grafikler
                     col_g1, col_g2 = st.columns(2)
-                    col_g1.subheader("📈 Güç Geçmişi")
-                    col_g1.line_chart(df.set_index('zaman')[['guc']])
-                    col_g2.subheader("📉 Voltaj Geçmişi")
-                    col_g2.line_chart(df.set_index('zaman')[['voltaj']])
+                    col_g1.subheader(f"📈 Güç ({periyot})")
+                    col_g1.line_chart(df_plot[['guc']])
+                    col_g2.subheader(f"📉 Voltaj ({periyot})")
+                    col_g2.line_chart(df_plot[['voltaj']])
                     
                     st.subheader("📋 Detaylı Veri Logu")
-                    st.dataframe(df[['zaman', 'cihaz', 'guc', 'voltaj', 'akim', 'fabrika']].sort_values('zaman', ascending=False), use_container_width=True)
+                    st.dataframe(df.sort_values('zaman', ascending=False), use_container_width=True)
                 else:
                     st.warning("Bu tarih aralığında veri yok.")
             else:
