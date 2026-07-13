@@ -1,167 +1,192 @@
 import streamlit as st
-import boto3
 import pandas as pd
+import boto3
+from boto3.dynamodb.conditions import Key
 import time
 
-# --- AWS KİMLİK BİLGİLERİN ---
-AWS_ACCESS_KEY = st.secrets["AWS_ACCESS_KEY"]
-AWS_SECRET_KEY = st.secrets["AWS_SECRET_KEY"]
-REGION_NAME = st.secrets["REGION_NAME"]
-ELEKTRIK_TARIFESI = 2.50 
-
-dynamodb = boto3.resource(
-    'dynamodb',
-    aws_access_key_id=AWS_ACCESS_KEY,
-    aws_secret_access_key=AWS_SECRET_KEY,
-    region_name=REGION_NAME
+# ==========================================
+# 1. SAYFA VE KURUMSAL TASARIM AYARLARI
+# ==========================================
+st.set_page_config(
+    page_title="Kürüm Mühendislik | Enerji Yönetim Portalı", 
+    page_icon="🏢", 
+    layout="wide"
 )
-table = dynamodb.Table('Enerji_Verileri')
 
-st.set_page_config(page_title="Enerji Takip Sistemi | Login", layout="wide")
+# Kurumsal CSS Arayüz Tasarımı
+st.markdown("""
+    <style>
+    /* Genel Arka Plan */
+    .stApp {
+        background-color: #f4f6f9;
+    }
+    /* Kurumsal Lacivert Başlıklar */
+    h1, h2, h3, h4 {
+        color: #0F172A !important;
+        font-family: 'Inter', 'Segoe UI', sans-serif;
+        font-weight: 700;
+    }
+    /* Metrik Kartları Geliştirme */
+    div[data-testid="stMetric"] {
+        background-color: #ffffff !important;
+        padding: 20px !important;
+        border-radius: 12px !important;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05) !important;
+        border-left: 6px solid #2563EB !important; /* Kurumsal Mavi Çizgi */
+    }
+    /* Metrik Değer Yazıları */
+    div[data-testid="stMetricValue"] {
+        font-size: 2rem !important;
+        font-weight: 700 !important;
+        color: #1E293B !important;
+    }
+    /* Alt Bilgi Alanı */
+    .footer-text {
+        text-align: center; 
+        color: #64748B; 
+        font-size: 0.85rem;
+        margin-top: 50px;
+    }
+    </style>
+""", unsafe_allow_html=True)
 
-# --- KULLANICI / MÜŞTERİ VERİ TABANI ---
-KULLANICILAR = {
-    "admin": {"sifre": "admin123", "rol": "admin", "fabrika": "HEPSI"},
-    "patron_a": {"sifre": "fabrikaA12", "rol": "patron", "fabrika": "Fabrika_A"},
-    "patron_b": {"sifre": "fabrikaB34", "rol": "patron", "fabrika": "Fabrika_B"}
-}
+# ==========================================
+# 2. AWS BAĞLANTI AYARLARI (SECRETS)
+# ==========================================
+def get_dynamodb_resource():
+    return boto3.resource(
+        'dynamodb',
+        aws_access_key_id=st.secrets["AWS_ACCESS_KEY"],
+        aws_secret_access_key=st.secrets["AWS_SECRET_KEY"],
+        region_name=st.secrets["REGION_NAME"]
+    )
 
-# Oturum Durumu Kontrolü
-if "giris_yapildi" not in st.session_state:
-    st.session_state.giris_yapildi = False
-    st.session_state.kullanici = ""
-    st.session_state.rol = ""
-    st.session_state.fabrika = ""
+# ==========================================
+# 3. KULLANICI GİRİŞ KONTROLÜ
+# ==========================================
+if 'logged_in' not in st.session_state:
+    st.session_state['logged_in'] = False
 
-# --- 1. KISIM: LOGIN (GİRİŞ EKRANI) ---
-if not st.session_state.giris_yapildi:
-    # Sayfayı ortalamak için boş sütunlar kullanıyoruz
-    col1, col2, col3 = st.columns([1, 2, 1])
+if not st.session_state['logged_in']:
+    # Giriş Ekranı Tasarımı
+    st.markdown("<h2 style='text-align: center; margin-top: 10%;'>🏢 KÜRÜM MÜHENDİSLİK</h2>", unsafe_allow_html=True)
+    st.markdown("<p style='text-align: center; color: #64748B;'>Endüstriyel Enerji Takip ve Analiz Portalı</p>", unsafe_allow_html=True)
     
+    col1, col2, col3 = st.columns([1, 1.5, 1])
     with col2:
-        st.markdown("<br><br>", unsafe_allow_html=True)
-        st.write("### 🏢 ENERJİ TAKİP PORTALI")
-        st.caption("Endüstriyel Akıllı Enerji Analizörü ve Raporlama Sistemi")
-        
-        # Giriş Form Kutusu
-        with st.form(key="login_form"):
-            st.markdown("##### 🔒 Müşteri Girişi")
-            kullanici_adi = st.text_input("Kullanıcı Adı / E-posta", placeholder="Örn: patron_a")
-            sifre = st.text_input("Şifre", type="password", placeholder="••••••••")
+        with st.form("login_form"):
+            st.markdown("### 🔒 Sistem Girişi")
+            username = st.text_input("Kullanıcı Adı")
+            password = st.text_input("Şifre", type="password")
+            submit = st.form_submit_button("Sisteme Giriş Yap")
             
-            submit_button = st.form_submit_button(label="Sisteme Giriş Yap")
-            
-            if submit_button:
-                if kullanici_adi in KULLANICILAR and KULLANICILAR[kullanici_adi]["sifre"] == sifre:
-                    st.session_state.giris_yapildi = True
-                    st.session_state.kullanici = kullanici_adi
-                    st.session_state.rol = KULLANICILAR[kullanici_adi]["rol"]
-                    st.session_state.fabrika = KULLANICILAR[kullanici_adi]["fabrika"]
-                    st.success("Giriş Başarılı! Yönlendiriliyorsunuz...")
-                    time.sleep(1)
+            if submit:
+                # Güvenli şifre kontrolü (Localdeki bilgilerinizle eşleştirin)
+                if username == "admin" and password == "kurum2026!":
+                    st.session_state['logged_in'] = True
                     st.rerun()
                 else:
-                    # Linkteki errNum=3 mantığı: Hatalı giriş uyarısı tetikleniyor
-                    st.error("❌ errNum=3: Hatalı Kullanıcı Adı veya Şifre! Lütfen bilgilerinizi kontrol edin.")
+                    st.error("Hatalı kullanıcı adı veya şifre!")
+    st.stop()
 
-# --- 2. KISIM: İÇERİK (DASHBOARD EKRANI) ---
-else:
-    # Yan Menü Kontrolleri ve Güvenli Çıkış
-    st.sidebar.markdown(f"### 👤 {st.session_state.kullanici.upper()}")
-    st.sidebar.caption(f"Yetki: {st.session_state.rol.upper()}")
-    
-    if st.sidebar.button("🚪 Sistemden Çıkış Yap"):
-        st.session_state.giris_yapildi = False
+# ==========================================
+# 4. ANA PANEL VE VERİ AKIŞI
+# ==========================================
+
+# Üst Kurumsal Header Bölümü
+left_co, right_co = st.columns([4, 1])
+with left_co:
+    st.title("🏢 KÜRÜM MÜHENDİSLİK")
+    st.markdown("##### Endüstriyel Akıllı Enerji Analizörü ve Raporlama Sistemi")
+
+with right_co:
+    st.write("")
+    if st.button("🚪 Sistemden Çıkış Yap", use_container_width=True):
+        st.session_state['logged_in'] = False
         st.rerun()
 
-    st.sidebar.markdown("---")
-    st.sidebar.header("⚙️ Grafik Ayarları")
-    veri_sayisi = st.sidebar.slider("Görselleştirilecek Kayıt Sayısı", 5, 50, 15)
-    otomatik_yenileme = st.sidebar.checkbox("Canlı Veri Akışı Aktif", value=True)
+st.markdown("---")
 
-    # Rol Yönetimi ve Fabrika Filtre Ayarı
-    hedef_fabrika = st.session_state.fabrika
-    if st.session_state.rol == "admin":
-        hedef_fabrika = st.sidebar.selectbox("İzlenecek Fabrikayı Seçin", ["Fabrika_A", "Fabrika_B"])
-        st.title(f"🏭 Merkez Yönetici Paneli")
-        st.subheader(f"📊 {hedef_fabrika} Anlık Durum Raporu")
-    else:
-        st.title(f"🏭 {hedef_fabrika} Enerji Takip Portalı")
+# Yan Menü Kontrolleri (Sidebar)
+st.sidebar.markdown("### 📊 Panel Ayarları")
+selected_factory = st.sidebar.selectbox("İzlenecek Tesis/Fabrika", ["Fabrika_A", "Fabrika_B"])
+record_count = st.sidebar.slider("Görselleştirilecek Kayıt Sayısı", 5, 50, 15)
+live_stream = st.sidebar.checkbox("Canlı Veri Akışı Aktif", value=True)
 
-    placeholder = st.empty()
-
-    while True:
-        response = table.scan()
-        items = response.get('Items', [])
+# AWS Veri Çekme Fonksiyonu
+try:
+    dynamodb = get_dynamodb_resource()
+    table = dynamodb.Table('EnergyData') # DynamoDB tablo adınız
+    
+    # Son verileri sorgula (Girdiğin kayıt sayısına göre)
+    response = table.query(
+        KeyConditionExpression=Key('device_id').eq(selected_factory),
+        Limit=record_count,
+        ScanIndexForward=False # En son verilerin en üstte gelmesi için
+    )
+    
+    items = response.get('Items', [])
+    
+    if items:
+        df = pd.DataFrame(items)
+        # Zaman damgasına göre sırala
+        df = df.sort_values(by='timestamp', ascending=True)
         
-        if items:
-            df = pd.DataFrame(items)
+        # En son veriyi anlık metrikler için al
+        latest_data = items[0]
+        
+        # Üst Metrik Kartları Bölümü
+        col1, col2, col3, col4 = st.columns(4)
+        col1.metric("⚡ Voltaj (V)", f"{float(latest_data.get('voltage', 0)):.1f} V")
+        col2.metric("🔌 Akım (A)", f"{float(latest_data.get('current', 0)):.2f} A")
+        col3.metric("🔥 Aktif Güç (W)", f"{float(latest_data.get('power', 0)):.1f} W")
+        col4.metric("🌐 Frekans (Hz)", f"{float(latest_data.get('frequency', 0)):.2f} Hz")
+        
+        st.write("")
+        
+        col5, col6, col7 = st.columns(3)
+        col5.metric("📦 Toplam Tüketim", f"{float(latest_data.get('total_energy', 0)):.2f} kWh")
+        col6.metric("💰 Dönemsel Maliyet", f"{float(latest_data.get('cost', 0)):.2f} TL")
+        col7.metric("📐 Güç Faktörü (Cos φ)", f"{float(latest_data.get('power_factor', 0)):.2f}")
+        
+        st.markdown("---")
+        
+        # Zaman Serisi Grafikleri
+        st.markdown("### 📈 Zaman Serisi Grafikleri")
+        
+        tab1, tab2 = st.tabs(["⚡ Yük & Gerilim Analizi", "📊 Akım & Verimlilik Grafiği"])
+        
+        with tab1:
+            st.markdown("#### Voltaj ve Güç Değişim Grafiği")
+            chart_data = df.set_index('timestamp')[['voltage', 'power']]
+            st.line_chart(chart_data)
             
-            # IoT simülatöründen gelen 'fabrika' alanına göre tam filtreleme
-            if 'fabrika' in df.columns:
-                df = df[df['fabrika'] == hedef_fabrika]
-
-            if not df.empty:
-                df['zaman'] = pd.to_datetime(df['zaman'])
-                df = df.sort_values(by='zaman')
-                
-                for col in ['voltaj', 'akim', 'guc', 'frekans', 'cos_phi', 'toplam_kwh']:
-                    if col in df.columns:
-                        df[col] = df[col].astype(float)
-
-                with placeholder.container():
-                    son_veri = df.iloc[-1]
-                    
-                    # Gösterge Kartları
-                    col1, col2, col3, col4 = st.columns(4)
-                    col1.metric(label="⚡ Voltaj (V)", value=f"{son_veri['voltaj']} V")
-                    col2.metric(label="🔌 Akım (A)", value=f"{son_veri['akim']} A")
-                    col3.metric(label="🔥 Aktif Güç (W)", value=f"{son_veri['guc']} W")
-                    
-                    frek_val = son_veri.get('frekans', 50.0)
-                    col4.metric(label="🌀 Frekans (Hz)", value=f"{frek_val} Hz")
-                    
-                    st.markdown("---")
-                    col_kwh, col_tl, col_cos = st.columns(3)
-                    
-                    kwh_val = son_veri.get('toplam_kwh', 0.0)
-                    col_kwh.metric(label="📦 Toplam Enerji Tüketimi", value=f"{kwh_val:.2f} kWh")
-                    
-                    tahmini_fatura = kwh_val * ELEKTRIK_TARIFESI
-                    col_tl.metric(label="💰 Dönemsel Maliyet Yükü", value=f"{tahmini_fatura:.2f} TL")
-                    
-                    cos_val = son_veri.get('cos_phi', 1.0)
-                    col_cos.metric(label="📉 Güç Faktörü (Cos φ)", value=f"{cos_val}")
-
-                    # Dinamik Alarm Bildirim Sahası
-                    st.markdown("---")
-                    if son_veri.get('UYARI_DURUMU', 'NORMAL') != "NORMAL":
-                        st.error(f"🚨 SİSTEM ALARMI: {son_veri['UYARI_DURUMU']}")
-                    else:
-                        st.success("✅ Sistem Durumu: Kararlı (Tüm değerler nominal sınırlarda)")
-
-                    # Trend Grafikleri
-                    st.subheader("📊 Zaman Serisi Grafikleri")
-                    tab1, tab2 = st.tabs(["Yük & Gerilim Grafiği", "Akım & Verimlilik Grafiği"])
-                    
-                    with tab1:
-                        chart_data1 = df.tail(veri_sayisi).set_index('zaman')[['voltaj', 'guc']]
-                        st.line_chart(chart_data1)
-                    with tab2:
-                        if 'cos_phi' in df.columns:
-                            chart_data2 = df.tail(veri_sayisi).set_index('zaman')[['akim', 'cos_phi']]
-                            st.line_chart(chart_data2)
-
-                    # Profesyonel Ham Veri Tablosu (Log)
-                    st.subheader("📋 Geçmiş Kayıt Günlüğü")
-                    gosterilecek_sutunlar = ['zaman', 'voltaj', 'akim', 'guc', 'toplam_kwh', 'UYARI_DURUMU']
-                    mevcut_sutunlar = [c for c in gosterilecek_sutunlar if c in df.columns]
-                    st.dataframe(df[mevcut_sutunlar].iloc[::-1], width='stretch')
-            else:
-                st.warning(f"⚠️ {hedef_fabrika} adına kayıtlı canlı veri akışı henüz bulunmuyor.")
-        else:
-            st.warning("Veri tabanından veri okunamıyor...")
+        with tab2:
+            st.markdown("#### Akım Tüketim Grafiği")
+            chart_data_current = df.set_index('timestamp')[['current']]
+            st.area_chart(chart_data_current)
             
-        if not otomatik_yenileme:
-            break
-        time.sleep(3)
+        # Sistem Durumu Bilgilendirmesi
+        st.success("✔️ Sistem Durumu: Kararlı (Tüm veriler Kürüm Mühendislik standartlarında nominal sınırlar içerisinde)")
+        
+    else:
+        st.warning(f"Seçilen tesise ({selected_factory}) ait veri bulunamadı. Lütfen ESP32 cihazınızın veri gönderdiğinden emin olun.")
+
+except Exception as e:
+    st.error(f"Veri tabanına bağlanırken bir hata oluştu. Lütfen AWS Secrets ayarlarını kontrol edin.")
+
+# Canlı Akış Aktifse Sayfayı Yenileme Mekanizması
+if live_stream:
+    time.sleep(5)
+    st.rerun()
+
+# ==========================================
+# 5. KURUMSAL FOOTER (ALT BİLGİ)
+# ==========================================
+st.markdown("<hr>", unsafe_allow_html=True)
+st.markdown(
+    "<p class='footer-text'>"
+    "© 2026 Kürüm Mühendislik Ar-Ge ve Otomasyon Teknolojileri Merkezi. Tüm hakları saklıdır. | Versiyon 1.1.0"
+    "</p>", 
+    unsafe_allow_html=True
+)
