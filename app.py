@@ -9,6 +9,14 @@ import io
 # --- Sayfa Yapılandırması ---
 st.set_page_config(page_title="Kürüm Mühendislik İzleme", layout="wide", page_icon="⚡")
 
+# Estetik CSS Dokunuşları
+st.markdown("""
+    <style>
+    [data-testid="stMetric"] {background-color: #f9f9f9; padding: 15px; border-radius: 10px; border-left: 5px solid #2E86C1; box-shadow: 2px 2px 5px rgba(0,0,0,0.1);}
+    th {background-color: #f0f2f6 !important; text-align: center !important;}
+    </style>
+""", unsafe_allow_html=True)
+
 @st.cache_resource
 def get_table():
     session = boto3.Session(
@@ -41,7 +49,6 @@ else:
     baslangic = st.sidebar.date_input("Başlangıç", datetime.now())
     bitis = st.sidebar.date_input("Bitiş", datetime.now())
     
-    # Yeni Eklenen: Grafik Çözünürlüğü
     periyot = st.sidebar.selectbox("📊 Grafik Çözünürlüğü:", 
                                    ["Anlık (Ham Veri)", "Saatlik", "Günlük", "Haftalık", "Aylık"])
     
@@ -63,8 +70,6 @@ else:
             st.rerun()
 
     st.sidebar.markdown("---")
-    
-    # Yeni Eklenen: İndirme Butonu Yeri
     indirme_yeri = st.sidebar.empty()
     
     if st.sidebar.button("🚪 Oturumu Kapat"):
@@ -84,23 +89,20 @@ else:
             if items:
                 df = pd.DataFrame(items)
                 df['guc'] = pd.to_numeric(df['guc'])
+                df['akim'] = pd.to_numeric(df['akim']) if 'akim' in df.columns else 0.0
                 df['zaman'] = pd.to_datetime(df['zaman'])
                 df['voltaj'] = pd.to_numeric(df['voltaj']) if 'voltaj' in df.columns else 0.0
                 df = df.sort_values('zaman')
                 
-                # Tarih Filtresi
                 mask = (df['zaman'].dt.date >= baslangic) & (df['zaman'].dt.date <= bitis)
                 df = df.loc[mask]
                 
                 if not df.empty:
-                    # İndirme Butonu Güncelleme
                     csv = df.to_csv(index=False).encode('utf-8-sig')
                     indirme_yeri.download_button("📥 Seçili Veriyi İndir (CSV)", csv, f"{secili_fabrika}_rapor.csv", "text/csv")
                     
-                    # Gruplama Mantığı
                     df_plot = df.set_index('zaman')
                     mapping = {"Saatlik": 'h', "Günlük": 'D', "Haftalık": 'W', "Aylık": 'ME'}
-                    
                     if periyot != "Anlık (Ham Veri)":
                         df_plot = df_plot.resample(mapping[periyot]).mean(numeric_only=True)
                     
@@ -114,7 +116,6 @@ else:
                     c3.metric("Anlık Voltaj", f"{vol:.2f} V")
                     c4.metric("Fabrika", "✅ Aktif")
                     
-                    # Grafikler
                     col_g1, col_g2 = st.columns(2)
                     col_g1.subheader(f"📈 Güç Geçmişi ({periyot})")
                     col_g1.line_chart(df_plot[['guc']])
@@ -122,7 +123,9 @@ else:
                     col_g2.line_chart(df_plot[['voltaj']])
                     
                     st.subheader("📋 Detaylı Veri Logu")
-                    st.dataframe(df[['zaman', 'cihaz', 'guc', 'voltaj', 'akim', 'fabrika']].sort_values('zaman', ascending=False), use_container_width=True)
+                    # Renkli ve Stilli Tablo
+                    styled_df = df[['zaman', 'cihaz', 'guc', 'voltaj', 'akim', 'fabrika']].sort_values('zaman', ascending=False)
+                    st.dataframe(styled_df.style.background_gradient(subset=['guc', 'akim'], cmap='Blues'), use_container_width=True)
                 else:
                     st.warning("Bu tarih aralığında veri yok.")
             else:
