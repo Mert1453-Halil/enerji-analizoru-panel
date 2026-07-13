@@ -5,6 +5,7 @@ from boto3.dynamodb.conditions import Attr
 import time
 from datetime import datetime, time as dt_time
 import io
+from sklearn.ensemble import IsolationForest # YZ için eklendi
 
 # --- Sayfa Yapılandırması ---
 st.set_page_config(page_title="Kürüm Mühendislik İzleme", layout="wide", page_icon="⚡")
@@ -101,6 +102,13 @@ else:
                     csv = df.to_csv(index=False).encode('utf-8-sig')
                     indirme_yeri.download_button("📥 Seçili Veriyi İndir (CSV)", csv, f"{secili_fabrika}_rapor.csv", "text/csv")
                     
+                    # --- YZ Anomali Tespiti ---
+                    if len(df) > 10:
+                        model = IsolationForest(contamination=0.05)
+                        df['anomaly'] = model.fit_predict(df[['guc', 'voltaj', 'akim']])
+                        if df.iloc[-1]['anomaly'] == -1:
+                            st.error(f"🚨 YZ Anomali Uyarısı: {df.iloc[-1]['zaman'].strftime('%H:%M:%S')} - Sıra dışı enerji aktivitesi tespit edildi!")
+
                     df_plot = df.set_index('zaman')
                     mapping = {"Saatlik": 'h', "Günlük": 'D', "Haftalık": 'W', "Aylık": 'ME'}
                     if periyot != "Anlık (Ham Veri)":
@@ -123,7 +131,6 @@ else:
                     col_g2.line_chart(df_plot[['voltaj']])
                     
                     st.subheader("📋 Detaylı Veri Logu")
-                    # Renkli ve Stilli Tablo
                     styled_df = df[['zaman', 'cihaz', 'guc', 'voltaj', 'akim', 'fabrika']].sort_values('zaman', ascending=False)
                     st.dataframe(styled_df.style.background_gradient(subset=['guc', 'akim'], cmap='Blues'), use_container_width=True)
                 else:
