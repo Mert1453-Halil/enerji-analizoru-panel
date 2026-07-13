@@ -99,17 +99,16 @@ else:
                 df = df.loc[mask]
                 
                 if not df.empty:
-                    # Hata giderildi: unique key eklendi
-                    csv = df.to_csv(index=False).encode('utf-8-sig')
-                    indirme_yeri.download_button("📥 Seçili Veriyi İndir (CSV)", csv, f"{secili_fabrika}_rapor.csv", "text/csv", key=f"btn_{i}")
-                    
-                    # --- YZ Anomali Tespiti ---
+                    # YZ Anomali Tespiti
                     if len(df) > 10:
                         model = IsolationForest(contamination=0.05)
                         df['anomaly'] = model.fit_predict(df[['guc', 'voltaj', 'akim']])
                         if df.iloc[-1]['anomaly'] == -1:
-                            st.error(f"🚨 YZ Anomali Uyarısı: {df.iloc[-1]['zaman'].strftime('%H:%M:%S')} - Sıra dışı enerji aktivitesi tespit edildi!")
+                            st.error(f"🚨 YZ Anomali Uyarısı: {df.iloc[-1]['zaman'].strftime('%H:%M:%S')} - Sıra dışı enerji aktivitesi!")
 
+                    csv = df.to_csv(index=False).encode('utf-8-sig')
+                    indirme_yeri.download_button("📥 Seçili Veriyi İndir (CSV)", csv, f"{secili_fabrika}_rapor.csv", "text/csv", key=f"btn_{i}")
+                    
                     df_plot = df.set_index('zaman')
                     mapping = {"Saatlik": 'h', "Günlük": 'D', "Haftalık": 'W', "Aylık": 'ME'}
                     if periyot != "Anlık (Ham Veri)":
@@ -132,8 +131,16 @@ else:
                     col_g2.line_chart(df_plot[['voltaj']])
                     
                     st.subheader("📋 Detaylı Veri Logu")
-                    styled_df = df[['zaman', 'cihaz', 'guc', 'voltaj', 'akim', 'fabrika']].sort_values('zaman', ascending=False)
-                    st.dataframe(styled_df.style.background_gradient(subset=['guc', 'akim'], cmap='Blues'), use_container_width=True)
+                    
+                    # YZ ile işaretlenmiş tablo
+                    def highlight_anomaly(row):
+                        return ['background-color: #ffcccc' if row.get('anomaly') == -1 else '' for _ in row]
+                    
+                    view_df = df.sort_values('zaman', ascending=False)
+                    st.dataframe(
+                        view_df[['zaman', 'cihaz', 'guc', 'voltaj', 'akim', 'fabrika', 'anomaly']].style.apply(highlight_anomaly, axis=1).background_gradient(subset=['guc', 'akim'], cmap='Blues'),
+                        use_container_width=True
+                    )
                 else:
                     st.warning("Bu tarih aralığında veri yok.")
             else:
