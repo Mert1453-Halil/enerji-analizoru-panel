@@ -62,7 +62,8 @@ else:
             st.session_state.giris = False
             st.rerun()
 
-    secili_fabrika = st.sidebar.selectbox("🏭 Fabrika:", ["Bursa_Fabrika", "İstanbul_Fabrika", "Ankara_Fabrika"])
+    # Çoklu fabrika seçimi kaldırıldı, Bursa_Fabrika sabitlendi.
+    secili_fabrika = "Bursa_Fabrika"
     
     st.sidebar.subheader("📅 Tarih Filtresi")
     baslangic = st.sidebar.date_input("Başlangıç", datetime.now())
